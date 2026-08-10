@@ -7,10 +7,15 @@ Este repositorio es público y no requiere que tengas cuenta para leerlo.
 
 ## Empieza por aquí
 
-### ➤ [Diagnóstico de entrada](https://umbingelelo.github.io/dsy1107-desarrollo-cloud-native/diagnostico/)
+### ➤ [Diagnóstico de entrada](https://dsy1107-umbingelelos-projects.vercel.app/)
 
 **Házlo antes de la segunda clase.** Son 40 minutos, no lleva nota, y se corrige solo: al terminar te
 dice qué repasar y te entrega un código que debes pegar en la actividad del aula virtual.
+
+### ➤ [Pulso](https://pulso-umbingelelos-projects.vercel.app/registro)
+
+La plataforma del curso. Regístrate con tu correo institucional, elige tu sección y empieza a
+acumular puntos.
 
 ## De qué se trata el ramo
 
@@ -59,7 +64,7 @@ Hay además tres evaluaciones formativas sin nota, en las semanas 5, 10 y 15.
 
 | Ruta | Qué es |
 |---|---|
-| [`diagnostico/`](diagnostico/) | Diagnóstico de entrada, autocorregido |
+| [`diagnostico/`](diagnostico/) | Código fuente del diagnóstico de entrada |
 
 Este índice va a ir creciendo semana a semana con los laboratorios.
 
