@@ -2,20 +2,19 @@
 
 **Duoc UC · Escuela de Informática y Telecomunicaciones · Segundo semestre 2026**
 
-Acá vas a encontrar todo el material del curso: guías, laboratorios y documentos de apoyo.
+Acá vas a encontrar el material del curso: guías, laboratorios y documentos de apoyo.
 Este repositorio es público y no requiere que tengas cuenta para leerlo.
 
 ## Empieza por aquí
 
-### ➤ [Diagnóstico de entrada](https://dsy1107-umbingelelos-projects.vercel.app/)
+### ➤ [Pulso, la plataforma del curso](https://pulso-umbingelelos-projects.vercel.app/registro)
 
-**Házlo antes de la segunda clase.** Son 40 minutos, no lleva nota, y se corrige solo: al terminar te
-dice qué repasar y te entrega un código que debes pegar en la actividad del aula virtual.
+Regístrate con tu correo institucional y elige tu sección. Ahí llevas tu avance, rindes las
+actividades y acumulas puntos. Solo por crear la cuenta partes con 100.
 
-### ➤ [Pulso](https://pulso-umbingelelos-projects.vercel.app/registro)
-
-La plataforma del curso. Regístrate con tu correo institucional, elige tu sección y empieza a
-acumular puntos.
+**El diagnóstico de entrada se rinde dentro de Pulso**: 40 preguntas, alrededor de una hora, sin
+nota y **por una sola vez**. Se corrige solo y te dice qué repasar antes de que haga falta. Suma 50
+puntos.
 
 ## De qué se trata el ramo
 
@@ -59,14 +58,6 @@ Cada parcial se compone de un **encargo** (40%, el código, en parejas) y una **
 distintas.
 
 Hay además tres evaluaciones formativas sin nota, en las semanas 5, 10 y 15.
-
-## Contenido del repositorio
-
-| Ruta | Qué es |
-|---|---|
-| [`diagnostico/`](diagnostico/) | Código fuente del diagnóstico de entrada |
-
-Este índice va a ir creciendo semana a semana con los laboratorios.
 
 ## Contacto
 
