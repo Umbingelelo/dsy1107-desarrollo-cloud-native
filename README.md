@@ -5,6 +5,13 @@
 Acá vas a encontrar todo el material del curso: guías, laboratorios y documentos de apoyo.
 Este repositorio es público y no requiere que tengas cuenta para leerlo.
 
+## Empieza por aquí
+
+### ➤ [Diagnóstico de entrada](https://umbingelelo.github.io/dsy1107-desarrollo-cloud-native/diagnostico/)
+
+**Házlo antes de la segunda clase.** Son 40 minutos, no lleva nota, y se corrige solo: al terminar te
+dice qué repasar y te entrega un código que debes pegar en la actividad del aula virtual.
+
 ## De qué se trata el ramo
 
 Vas a construir una **plataforma de videojuegos** distribuida en la nube: catálogo, compras,
@@ -20,14 +27,6 @@ Para llegar ahí pasamos por tres etapas:
 
 **Stack:** Angular · NestJS con TypeScript · Azure Entra ID · AWS API Gateway · RabbitMQ ·
 Apache Kafka · Docker.
-
-## Contenido
-
-| Documento | Cuándo lo necesitas |
-|---|---|
-| [Diagnóstico de entrada](diagnostico-de-entrada.md) | **Ahora**, antes de la segunda clase |
-
-Este índice va a ir creciendo semana a semana con los laboratorios.
 
 ## Cómo trabajamos
 
@@ -53,6 +52,16 @@ puedes recuperarla sola con la guía.
 Cada parcial se compone de un **encargo** (40%, el código, en parejas) y una **defensa individual**
 (60%). La defensa se califica por separado: dos personas del mismo grupo pueden obtener notas
 distintas.
+
+Hay además tres evaluaciones formativas sin nota, en las semanas 5, 10 y 15.
+
+## Contenido del repositorio
+
+| Ruta | Qué es |
+|---|---|
+| [`diagnostico/`](diagnostico/) | Diagnóstico de entrada, autocorregido |
+
+Este índice va a ir creciendo semana a semana con los laboratorios.
 
 ## Contacto
 
