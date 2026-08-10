@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico de entrada — DSY1107</title>
+<style>
+:root{
+  --fondo:#FFFFFF; --fondo-alt:#F1F6FD; --marco:#DDE5F0; --borde:#CBD9EC;
+  --texto:#1A1A1A; --texto-suave:#666666; --etiqueta:#2A6BC4;
+  --acento:#307FE2; --acento-fuerte:#1F5FB0; --acento-2:#FFB800;
+  --ok:#1E7A4B; --ok-fondo:#E7F5EE; --error:#C0392B; --error-fondo:#FCECEA;
+  --fuente:'Montserrat','Segoe UI',system-ui,-apple-system,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{ background:var(--marco); color:var(--texto); font-family:var(--fuente);
+      line-height:1.6; padding:32px 20px 80px; }
+.hoja{ max-width:880px; margin:0 auto; background:var(--fondo); border-radius:16px;
+       box-shadow:0 2px 24px rgba(26,26,26,.10); padding:48px 56px; }
+@media (max-width:640px){ .hoja{ padding:28px 22px; } }
+
+h1{ font-size:34px; line-height:1.2; letter-spacing:-.02em; margin-bottom:6px; }
+h2{ font-size:25px; margin:44px 0 6px; padding-top:26px; border-top:2px solid var(--borde); }
+h2:first-of-type{ border-top:none; padding-top:0; }
+h3{ font-size:19px; color:var(--etiqueta); margin:26px 0 10px; }
+p{ margin:12px 0; }
+.suave{ color:var(--texto-suave); }
+.chico{ font-size:15px; }
+strong{ font-weight:650; }
+code{ font-family:var(--mono); background:var(--fondo-alt); padding:2px 6px; border-radius:5px; font-size:.92em; }
+pre{ background:#F5F7FA; border:1px solid #DCE3EC; border-radius:var(--r); padding:16px 18px;
+     overflow-x:auto; font-family:var(--mono); font-size:14px; line-height:1.5; margin:12px 0; }
+pre code{ background:none; padding:0; }
+
+.aviso{ background:var(--fondo-alt); border-left:5px solid var(--acento-2);
+        border-radius:0 var(--r) var(--r) 0; padding:18px 22px; margin:22px 0; }
+.aviso strong{ color:var(--texto); }
+
+.campo{ margin:26px 0; }
+.campo label{ display:block; font-size:14px; letter-spacing:.1em; text-transform:uppercase;
+              color:var(--etiqueta); margin-bottom:8px; }
+.campo input{ width:100%; padding:13px 16px; font-size:17px; font-family:inherit;
+              border:2px solid var(--borde); border-radius:var(--r); background:var(--fondo); color:var(--texto); }
+.campo input:focus{ outline:none; border-color:var(--acento); }
+
+.pregunta{ margin:26px 0; padding-bottom:4px; }
+.pregunta .enunciado{ font-size:17px; margin-bottom:12px; }
+.pregunta .enunciado b{ color:var(--acento-fuerte); }
+.ops{ display:flex; flex-direction:column; gap:8px; }
+.op{ display:flex; gap:12px; align-items:flex-start; padding:12px 16px; font-size:16px;
+     border:2px solid var(--borde); border-radius:var(--r); cursor:pointer; transition:border-color .12s; }
+.op:hover{ border-color:var(--acento); }
+.op input{ margin-top:5px; accent-color:var(--acento); flex:none; }
+.op.marcada{ border-color:var(--acento); background:var(--fondo-alt); }
+.op.correcta{ border-color:var(--ok); background:var(--ok-fondo); }
+.op.fallada{ border-color:var(--error); background:var(--error-fondo); }
+.explica{ display:none; font-size:15px; color:var(--texto-suave);
+          background:var(--fondo-alt); border-radius:var(--r); padding:14px 18px; margin-top:10px; }
+.revisado .explica{ display:block; }
+.sin-responder{ border:2px solid var(--error); border-radius:var(--r); padding:2px; }
+
+.boton{ background:var(--acento-fuerte); color:#fff; border:none; border-radius:999px;
+        padding:15px 34px; font-size:17px; font-weight:650; font-family:inherit; cursor:pointer; }
+.boton:hover{ background:var(--acento); }
+.boton.sec{ background:transparent; color:var(--acento-fuerte); border:2px solid var(--acento-fuerte); }
+.acciones{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:24px; }
+
+#resultado{ display:none; }
+#resultado.visible{ display:block; }
+
+table{ width:100%; border-collapse:collapse; margin:18px 0; }
+th{ text-align:left; font-size:13px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--etiqueta); padding:10px 12px; border-bottom:2px solid var(--borde); }
+td{ font-size:16px; padding:12px; border-bottom:1px solid var(--borde); }
+td.num{ font-variant-numeric:tabular-nums; white-space:nowrap; }
+tr.bajo td{ background:var(--error-fondo); }
+tr.bajo td:first-child{ font-weight:650; }
+
+.codigo-caja{ background:#0F1720; color:#E8EEF5; border-radius:var(--r); padding:22px 24px; margin:18px 0; }
+.codigo-caja .etq{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#8FB8E8; }
+#codigo{ font-family:var(--mono); font-size:17px; word-break:break-all; margin-top:8px; user-select:all; }
+
+.pie{ margin-top:44px; padding-top:22px; border-top:2px solid var(--borde);
+      font-size:15px; color:var(--texto-suave); }
+
+#docente{ display:none; }
+#docente.visible{ display:block; }
+textarea{ width:100%; min-height:180px; padding:14px 16px; font-family:var(--mono); font-size:14px;
+          border:2px solid var(--borde); border-radius:var(--r); resize:vertical; }
+</style>
+</head>
+<body>
+
+<div class="hoja" id="alumno">
+  <p class="suave chico">DSY1107 · Desarrollo Cloud Native I · Duoc UC</p>
+  <h1>Diagnóstico de entrada</h1>
+  <p class="suave">No lleva nota. Nadie va a saber tu puntaje salvo tú y yo.</p>
+
+  <div class="aviso">
+    <p><strong>Para qué sirve.</strong> Este ramo da por supuestas varias cosas de semestres
+    anteriores. Si algo no quedó firme, no es un problema — pero necesito saberlo <strong>ahora</strong>,
+    no en la semana 9 cuando estemos peleando con mensajería asíncrona.</p>
+    <p><strong>Responde honestamente y sin buscar.</strong> Si adivinas, el diagnóstico deja de servir
+    para los dos. Que te vaya mal aquí no tiene ningún costo; que me mientas te lo va a cobrar
+    septiembre. <em>No sé</em> es una respuesta válida y me sirve más que un acierto por casualidad.</p>
+  </div>
+
+  <p class="chico suave">Toma unos 40 minutos. No necesitas instalar nada: todo se responde leyendo.</p>
+
+  <div class="campo">
+    <label for="nombre">Tu nombre completo</label>
+    <input type="text" id="nombre" placeholder="Nombre y apellido" autocomplete="name">
+  </div>
+
+  <form id="formulario"></form>
+
+  <div class="acciones">
+    <button class="boton" id="btn-corregir">Ver mi resultado</button>
+    <span class="chico suave" id="faltan"></span>
+  </div>
+
+  <div id="resultado">
+    <h2>Tu resultado</h2>
+    <table id="tabla-resultado"></table>
+
+    <div id="mensaje-d"></div>
+
+    <h3>Tu código de entrega</h3>
+    <p class="chico">Cópialo y pégalo en la actividad del aula virtual. Contiene solo tus aciertos por
+    sección, no tus respuestas.</p>
+    <div class="codigo-caja">
+      <div class="etq">Código de resultado</div>
+      <div id="codigo"></div>
+    </div>
+    <div class="acciones">
+      <button class="boton" id="btn-copiar">Copiar código</button>
+      <button class="boton sec" id="btn-descargar">Descargar archivo</button>
+    </div>
+
+    <h3>Revisa las respuestas</h3>
+    <p class="chico">Más arriba quedó marcada cada pregunta con su explicación. Léelas: es la parte
+    que de verdad te sirve.</p>
+  </div>
+
+  <div class="pie">
+    <strong>Cristian Calderón</strong> · cr.calderons@profesor.duoc.cl<br>
+    Escuela de Informática y Telecomunicaciones · Duoc UC
+  </div>
+</div>
+
+<div class="hoja" id="docente">
+  <h1>Diagnóstico — lectura de códigos</h1>
+  <p class="suave">Pega los códigos recibidos, uno por línea.</p>
+  <textarea id="entrada" placeholder="DSY-...&#10;DSY-...&#10;DSY-..."></textarea>
+  <div class="acciones"><button class="boton" id="btn-leer">Procesar</button></div>
+  <div id="salida-docente"></div>
+</div>
+
+<script>
+const SECCIONES = [
+  { id:'A', titulo:'Web y HTTP', umbral:3, repaso:'Métodos HTTP y códigos de estado — semana 1',
+    preguntas:[
+      { t:'Acabas de crear un usuario nuevo con una petición al servidor y todo salió bien. ¿Qué código de estado corresponde devolver?',
+        ops:['200','201','204'], ok:1,
+        exp:'El 200 dice «salió bien»; el <b>201 Created</b> dice además «y creé algo nuevo». La diferencia importa cuando alguien consume tu API y necesita saber si hubo creación.' },
+      { t:'Intentas entrar a una sección y el servidor responde <b>403</b>. ¿Qué significa?',
+        ops:['El servidor no sabe quién eres','El servidor sabe quién eres, pero no tienes permiso','La dirección no existe'], ok:1,
+        exp:'El <b>401</b> es «no sé quién eres» (falta el token o es inválido). El <b>403</b> es «sé quién eres y aun así, no». Vas a distinguirlos mucho en la unidad 1.' },
+      { t:'¿Cuál es la diferencia entre <code>POST /usuarios</code> y <code>PUT /usuarios/15</code>?',
+        ops:['Ninguna, son sinónimos','POST crea un recurso nuevo; PUT reemplaza uno que ya existe','POST envía datos y PUT los lee'], ok:1,
+        exp:'<code>POST</code> crea; <code>PUT</code> reemplaza un recurso identificado. Por eso <code>PUT</code> lleva el id en la ruta y <code>POST</code> no.' },
+      { t:'¿Qué es JSON?',
+        ops:['Un lenguaje de programación','Un formato de texto para representar datos, que casi cualquier lenguaje sabe leer','Una base de datos'], ok:1,
+        exp:'No es lenguaje ni base de datos. Es la forma en que dos sistemas distintos se pasan información sin ponerse de acuerdo en nada más.' }
+    ]},
+
+  { id:'B', titulo:'Línea de comandos', umbral:2, repaso:'Navegación básica en terminal — semana 1',
+    preguntas:[
+      { t:'Estás en <code>/home/ana</code> y quieres llegar a <code>/home/ana/proyectos/api</code>. ¿Qué escribes?',
+        ops:['cd proyectos/api','go /home/ana/proyectos/api','open proyectos api'], ok:0,
+        exp:'Como ya estás en <code>/home/ana</code>, basta la ruta relativa. También sirve la absoluta completa.' },
+      { t:'¿Para qué sirve una variable de entorno?',
+        ops:['Para guardar valores que cambian según dónde corre el programa, sin tocar el código','Para declarar variables dentro de una función','Para instalar programas'], ok:0,
+        exp:'Es como le dices a un programa «esta es tu contraseña de base de datos» sin escribirla dentro del código. En la semana 17 hay una clase dedicada a por qué nunca se suben al repositorio.' },
+      { t:'¿Qué muestra <code>ls -la</code>?',
+        ops:['La lista de programas instalados','El contenido de la carpeta actual, incluidos los ocultos, con sus permisos','El historial de comandos'], ok:1,
+        exp:'La <code>a</code> muestra los ocultos (los que empiezan con punto, como <code>.env</code> o <code>.gitignore</code>) y la <code>l</code> muestra el detalle.' }
+    ]},
+
+  { id:'C', titulo:'Git', umbral:3, repaso:'Commits, ramas y .gitignore — semana 7',
+    preguntas:[
+      { t:'¿Qué es un <em>commit</em>?',
+        ops:['Subir los archivos al servidor','Un punto guardado en la historia del proyecto, con los cambios y un mensaje','Una copia de seguridad automática'], ok:1,
+        exp:'Un commit es una foto del proyecto en un momento, con un mensaje que explica qué cambió. Subirlo al servidor es otra cosa (<code>push</code>).' },
+      { t:'¿Para qué sirve el archivo <code>.gitignore</code>?',
+        ops:['Para ocultar archivos del sistema operativo','Para indicarle a Git qué archivos <b>no</b> debe versionar ni subir','Para borrar archivos del repositorio'], ok:1,
+        exp:'Le dice a Git qué ignorar. Este semestre entregan por GitHub y la pauta revisa que esté bien configurado.' },
+      { t:'¿Cuál de estos <b>nunca</b> debería subirse a un repositorio?',
+        ops:['El archivo README.md','La carpeta node_modules','El código fuente'], ok:1,
+        exp:'Son dependencias que cualquiera reinstala con un comando; pesan cientos de megas y no aportan nada. Peor todavía sería subir un <code>.env</code> con contraseñas — eso es un incidente de seguridad, no un descuido.' },
+      { t:'Trabajas con un compañero en el mismo repositorio. ¿Para qué sirve una <em>rama</em>?',
+        ops:['Para trabajar en un cambio sin afectar la versión principal hasta que esté listo','Para hacer una copia del proyecto en otra carpeta','Para dividir el repositorio en dos'], ok:0,
+        exp:'Permite que dos personas trabajen a la vez sin pisarse.' }
+    ]},
+
+  { id:'D', titulo:'Programación asíncrona en JavaScript', umbral:4, critica:true,
+    repaso:'Promesas y async/await — semana 4',
+    intro:'Esta es la sección más importante del diagnóstico. Todo el backend del semestre es TypeScript asíncrono.',
+    preguntas:[
+      { t:'¿En qué orden se imprimen los números?',
+        codigo:"async function tarea() {\n  console.log(1);\n  await esperar(1000);   // espera un segundo\n  console.log(2);\n}\n\nconsole.log(3);\ntarea();\nconsole.log(4);",
+        ops:['1, 2, 3, 4','3, 1, 4, 2','3, 4, 1, 2'], ok:1,
+        exp:'El <code>3</code> va primero porque está antes. Al llamar <code>tarea()</code> se ejecuta hasta el <code>await</code>: imprime <code>1</code> y ahí <b>devuelve el control</b>. Por eso el <code>4</code> sale antes que el <code>2</code>.' },
+      { t:'¿Qué imprime este código?',
+        codigo:"async function dame() {\n  return 5;\n}\n\nconst x = dame();\nconsole.log(x);",
+        ops:['5','Una promesa, no el número','undefined'], ok:1,
+        exp:'Una función <code>async</code> <b>siempre</b> devuelve una promesa. Para obtener el 5 hay que escribir <code>await dame()</code>. Este es el origen del clásico «me llegó <code>[object Promise]</code>».' },
+      { t:'¿Qué pasa acá?',
+        codigo:"const ids = [1, 2, 3];\n\nids.forEach(async (id) => {\n  await guardarEnBase(id);\n});\n\nconsole.log('Todo guardado');",
+        ops:['Imprime «Todo guardado» después de guardar los tres','Imprime «Todo guardado» de inmediato, sin esperar a que se guarde ninguno','Da error de sintaxis'], ok:1,
+        exp:'<code>forEach</code> no sabe nada de promesas: dispara las tres funciones y sigue de largo. Es un error frecuente y muy silencioso, porque no falla — simplemente hace las cosas en desorden.' },
+      { t:'Las dos versiones hacen lo mismo. Si cada tarea demora 1 segundo, ¿cuánto demora cada una?',
+        codigo:"// Versión A\nconst a = await tarea1();\nconst b = await tarea2();\n\n// Versión B\nconst [a, b] = await Promise.all([tarea1(), tarea2()]);",
+        ops:['A: 2 s · B: 2 s','A: 2 s · B: 1 s','A: 1 s · B: 2 s'], ok:1,
+        exp:'En A cada <code>await</code> espera a que termine el anterior. En B las dos parten juntas y esperas a que terminen ambas. Es la optimización más rentable que existe en código asíncrono.' },
+      { t:'¿El <code>catch</code> captura el error si <code>obtenerDatos</code> falla?',
+        codigo:"try {\n  const datos = obtenerDatos();   // función async, sin await\n} catch (e) {\n  console.log('Error capturado');\n}",
+        ops:['Sí, siempre','No, porque falta el await','Sí, pero solo si el error es de red'], ok:1,
+        exp:'Sin <code>await</code>, la promesa se rechaza <em>después</em> de que el bloque <code>try</code> ya terminó, y el <code>catch</code> no alcanza a verlo.' },
+      { t:'¿Qué es una <em>promesa</em> en JavaScript?',
+        ops:['Un valor que todavía no está disponible, pero que llegará (o fallará) más adelante','Una función que se ejecuta más rápido','Una forma de declarar variables constantes'], ok:0,
+        exp:'Es un compromiso: «todavía no tengo el resultado, pero te aviso cuando lo tenga o cuando falle».' }
+    ]},
+
+  { id:'E', titulo:'Bases de datos', umbral:2, repaso:'SELECT, relaciones y claves foráneas — semana 5',
+    preguntas:[
+      { t:'¿Qué hace esta consulta?',
+        codigo:"SELECT nombre, precio FROM juegos WHERE precio < 10000;",
+        ops:['Devuelve el nombre y el precio de los juegos que cuestan menos de 10.000','Cambia el precio de los juegos a 10.000','Borra los juegos que cuestan menos de 10.000'], ok:0,
+        exp:'<code>SELECT</code> lee, no modifica. <code>WHERE</code> filtra.' },
+      { t:'¿Para qué sirve una clave foránea?',
+        ops:['Para cifrar los datos de una tabla','Para relacionar una fila de una tabla con una fila de otra','Para ordenar los resultados'], ok:1,
+        exp:'Es lo que conecta las tablas entre sí y garantiza que la referencia apunte a algo que existe de verdad.' },
+      { t:'Tienes <code>usuarios</code> y <code>compras</code>. Un usuario puede tener muchas compras, y cada compra pertenece a un solo usuario. ¿Dónde va la referencia?',
+        ops:['En usuarios, apuntando a compras','En compras, apuntando a usuarios','En una tercera tabla'], ok:1,
+        exp:'En una relación uno-a-muchos, la referencia va siempre <b>en el lado «muchos»</b>. Cada compra guarda a qué usuario pertenece.' }
+    ]},
+
+  { id:'F', titulo:'Redes y despliegue', umbral:2, repaso:'Puertos y servicios — semana 8',
+    preguntas:[
+      { t:'Tu aplicación corre en <code>http://localhost:3000</code>. ¿Qué es el <code>3000</code>?',
+        ops:['La versión del programa','El puerto donde el programa está escuchando','La cantidad de usuarios que soporta'], ok:1,
+        exp:'Una misma máquina puede tener muchos programas escuchando a la vez; el puerto es el número que distingue a cuál le hablas.' },
+      { t:'¿Qué significa que un servicio esté «en la nube»?',
+        ops:['Que corre en computadores de un proveedor, a los que accedes por internet','Que no necesita servidores','Que los datos se guardan en el navegador'], ok:0,
+        exp:'«La nube» es el computador de otra persona, alquilado y accesible por internet.' },
+      { t:'¿Has usado Docker antes?',
+        ops:['Sí, sé crear imágenes y levantar contenedores','Lo he usado siguiendo instrucciones, pero no sabría explicarlo','Sé qué es, pero nunca lo he usado','Nunca lo he escuchado'],
+        encuesta:true,
+        exp:'Esta no tiene respuesta correcta: es la pregunta que más me sirve. Si la mayoría del curso nunca lo ha usado, la clase de Docker de la semana 8 se alarga. No pasa nada si nunca lo has tocado.' }
+    ]},
+
+  { id:'G', titulo:'Seguridad', umbral:2, repaso:'Hash, cifrado y codificación — semana 2',
+    preguntas:[
+      { t:'¿Cuál es la diferencia entre <em>hashear</em> y <em>cifrar</em> una contraseña?',
+        ops:['Ninguna, son sinónimos','El cifrado se puede revertir con la clave; el hash está diseñado para no poder revertirse','El hash es más seguro porque usa más caracteres'], ok:1,
+        exp:'Cifrar es reversible si tienes la clave. Hashear es de una sola vía: por eso los sistemas serios guardan el hash de tu contraseña y no la contraseña.' },
+      { t:'Recibes este texto: <code>eyJub21icmUiOiJhbmEifQ==</code>. ¿Está seguro su contenido?',
+        ops:['Sí, está cifrado','No, está codificado en Base64 y cualquiera lo puede leer','Depende de la longitud de la clave'], ok:1,
+        exp:'Base64 <b>no es seguridad</b>, es una forma de representar datos como texto. Ese ejemplo dice <code>{"nombre":"ana"}</code>. Lo vas a comprobar tú mismo en la semana 2, y es clave para entender por qué un token va firmado y no solo codificado.' }
+    ]}
+];
+
+const NO_SE = 'No sé';
+const form = document.getElementById('formulario');
+
+SECCIONES.forEach(sec => {
+  const h = document.createElement('h2');
+  h.textContent = `Sección ${sec.id} · ${sec.titulo}`;
+  form.appendChild(h);
+
+  if (sec.intro){
+    const av = document.createElement('div');
+    av.className = 'aviso';
+    av.innerHTML = `<p>${sec.intro}</p>`;
+    form.appendChild(av);
+  }
+
+  sec.preguntas.forEach((p, i) => {
+    const clave = `${sec.id}${i + 1}`;
+    const div = document.createElement('div');
+    div.className = 'pregunta';
+    div.id = `p-${clave}`;
+
+    let html = `<div class="enunciado"><b>${clave}.</b> ${p.t}</div>`;
+    if (p.codigo) html += `<pre><code>${p.codigo.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</code></pre>`;
+    html += '<div class="ops">';
+    [...p.ops, NO_SE].forEach((op, j) => {
+      html += `<label class="op" data-op="${j}">
+                 <input type="radio" name="${clave}" value="${j}">
+                 <span>${op}</span>
+               </label>`;
+    });
+    html += `</div><div class="explica">${p.exp}</div>`;
+    div.innerHTML = html;
+    form.appendChild(div);
+  });
+});
+
+form.addEventListener('change', e => {
+  if (e.target.type !== 'radio') return;
+  const grupo = e.target.closest('.ops');
+  grupo.querySelectorAll('.op').forEach(o => o.classList.remove('marcada'));
+  e.target.closest('.op').classList.add('marcada');
+  e.target.closest('.pregunta').classList.remove('sin-responder');
+  actualizarFaltan();
+});
+
+function totalPreguntas(){ return SECCIONES.reduce((n, s) => n + s.preguntas.length, 0); }
+function respondidas(){ return new Set([...form.querySelectorAll('input:checked')].map(i => i.name)).size; }
+
+function actualizarFaltan(){
+  const faltan = totalPreguntas() - respondidas();
+  document.getElementById('faltan').textContent =
+    faltan === 0 ? 'Todas respondidas.' : `Faltan ${faltan} de ${totalPreguntas()}.`;
+}
+actualizarFaltan();
+
+document.getElementById('btn-corregir').addEventListener('click', () => {
+  const nombre = document.getElementById('nombre').value.trim();
+  if (!nombre){
+    alert('Escribe tu nombre antes de corregir.');
+    document.getElementById('nombre').focus();
+    return;
+  }
+
+  let primeraSinResponder = null;
+  SECCIONES.forEach(sec => sec.preguntas.forEach((p, i) => {
+    const clave = `${sec.id}${i + 1}`;
+    const el = document.getElementById(`p-${clave}`);
+    const marcada = form.querySelector(`input[name="${clave}"]:checked`);
+    el.classList.toggle('sin-responder', !marcada);
+    if (!marcada && !primeraSinResponder) primeraSinResponder = el;
+  }));
+
+  if (primeraSinResponder){
+    primeraSinResponder.scrollIntoView({ behavior:'smooth', block:'center' });
+    alert('Faltan preguntas por responder. Están marcadas en rojo.\n«No sé» también es una respuesta válida.');
+    return;
+  }
+
+  const puntajes = [];
+
+  SECCIONES.forEach(sec => {
+    let aciertos = 0;
+    sec.preguntas.forEach((p, i) => {
+      const clave = `${sec.id}${i + 1}`;
+      const div = document.getElementById(`p-${clave}`);
+      const elegida = Number(form.querySelector(`input[name="${clave}"]:checked`).value);
+      div.classList.add('revisado');
+
+      if (p.encuesta) return;
+
+      if (elegida === p.ok) aciertos++;
+      div.querySelectorAll('.op').forEach(o => {
+        const j = Number(o.dataset.op);
+        if (j === p.ok) o.classList.add('correcta');
+        else if (j === elegida) o.classList.add('fallada');
+      });
+    });
+    puntajes.push(aciertos);
+  });
+
+  mostrarResultado(nombre, puntajes);
+});
+
+function puntuables(sec){ return sec.preguntas.filter(p => !p.encuesta).length; }
+
+function mostrarResultado(nombre, puntajes){
+  const tabla = document.getElementById('tabla-resultado');
+  let html = '<tr><th>Sección</th><th>Aciertos</th><th>Qué repasar si quedaste bajo</th></tr>';
+
+  SECCIONES.forEach((sec, k) => {
+    const max = puntuables(sec);
+    const bajo = puntajes[k] < sec.umbral;
+    html += `<tr class="${bajo ? 'bajo' : ''}">
+      <td>${sec.id} · ${sec.titulo}</td>
+      <td class="num">${puntajes[k]} de ${max}</td>
+      <td>${bajo ? sec.repaso : '<span class="suave">Sin observaciones</span>'}</td>
+    </tr>`;
+  });
+  tabla.innerHTML = html;
+
+  const idxD = SECCIONES.findIndex(s => s.critica);
+  const secD = SECCIONES[idxD];
+  const msg = document.getElementById('mensaje-d');
+  msg.innerHTML = puntajes[idxD] < secD.umbral
+    ? `<div class="aviso"><p><strong>Atención con la sección D.</strong> Es la que sostiene el resto
+       del semestre: los consumidores de mensajería de la semana 8 y los de streaming de la semana 13
+       son código asíncrono de principio a fin. Las demás secciones se recuperan sobre la marcha;
+       esa no. Avísame en clase — vamos a reforzarla igual para todos, pero prefiero saber con
+       cuánta gente estoy trabajando.</p></div>`
+    : `<div class="aviso"><p><strong>Buena noticia:</strong> la sección D es la que más pesa en este
+       ramo y la tienes firme. Eso te deja mucho margen para el resto.</p></div>`;
+
+  const codigo = generarCodigo(nombre, puntajes);
+  document.getElementById('codigo').textContent = codigo;
+  window.__codigo = codigo;
+  window.__nombre = nombre;
+
+  const res = document.getElementById('resultado');
+  res.classList.add('visible');
+  res.scrollIntoView({ behavior:'smooth' });
+}
+
+function generarCodigo(nombre, puntajes){
+  const fecha = new Date().toISOString().slice(0, 10);
+  const carga = `${nombre}|${puntajes.join('')}|${fecha}`;
+  const b64 = btoa(unescape(encodeURIComponent(carga)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `DSY-${b64}-${verificador(b64)}`;
+}
+
+function verificador(s){
+  let n = 0;
+  for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) % 1296;
+  return n.toString(36).toUpperCase().padStart(2, '0');
+}
+
+function leerCodigo(codigo){
+  const m = codigo.trim().match(/^DSY-([A-Za-z0-9\-_]+)-([A-Z0-9]{2})$/);
+  if (!m) return { error:'formato inválido' };
+  if (verificador(m[1]) !== m[2]) return { error:'código alterado o mal copiado' };
+  let carga;
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    carga = decodeURIComponent(escape(atob(b64)));
+  } catch { return { error:'no se pudo leer' }; }
+  const [nombre, digitos, fecha] = carga.split('|');
+  if (!nombre || !digitos) return { error:'contenido incompleto' };
+  return { nombre, puntajes:[...digitos].map(Number), fecha };
+}
+
+document.getElementById('btn-copiar').addEventListener('click', async e => {
+  try {
+    await navigator.clipboard.writeText(window.__codigo);
+    e.target.textContent = '¡Copiado!';
+    setTimeout(() => e.target.textContent = 'Copiar código', 1800);
+  } catch {
+    alert('Selecciona el código y cópialo con Ctrl+C.');
+  }
+});
+
+document.getElementById('btn-descargar').addEventListener('click', () => {
+  const limpio = window.__nombre.normalize('NFD').replace(/[̀-ͯ]/g, '')
+                   .replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+  const contenido = `Diagnóstico de entrada — DSY1107\nNombre: ${window.__nombre}\nCódigo: ${window.__codigo}\n`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], { type:'text/plain' }));
+  a.download = `diagnostico-${limpio}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+if (location.search.includes('docente')){
+  document.getElementById('alumno').style.display = 'none';
+  document.getElementById('docente').classList.add('visible');
+}
+
+document.getElementById('btn-leer').addEventListener('click', () => {
+  const lineas = document.getElementById('entrada').value.split('\n').map(l => l.trim()).filter(Boolean);
+  const filas = lineas.map(leerCodigo);
+  const validas = filas.filter(f => !f.error);
+
+  let html = `<h2>${validas.length} de ${filas.length} códigos leídos</h2><table>`;
+  html += '<tr><th>Nombre</th>' + SECCIONES.map(s => `<th>${s.id}</th>`).join('') + '<th>Fecha</th></tr>';
+
+  filas.forEach((f, i) => {
+    if (f.error){
+      html += `<tr class="bajo"><td colspan="${SECCIONES.length + 2}">Línea ${i + 1}: ${f.error}</td></tr>`;
+      return;
+    }
+    html += `<tr><td>${f.nombre}</td>` +
+      SECCIONES.map((s, k) => {
+        const v = f.puntajes[k];
+        const bajo = v < s.umbral;
+        return `<td class="num"${bajo ? ' style="color:var(--error);font-weight:700"' : ''}>${v}</td>`;
+      }).join('') +
+      `<td class="num suave">${f.fecha || '—'}</td></tr>`;
+  });
+
+  if (validas.length){
+    html += '<tr><td><strong>Promedio</strong></td>' +
+      SECCIONES.map((s, k) => {
+        const prom = validas.reduce((n, f) => n + f.puntajes[k], 0) / validas.length;
+        return `<td class="num"><strong>${prom.toFixed(1)}</strong></td>`;
+      }).join('') + '<td></td></tr>';
+
+    html += '<tr><td><strong>Bajo el umbral</strong></td>' +
+      SECCIONES.map((s, k) => {
+        const n = validas.filter(f => f.puntajes[k] < s.umbral).length;
+        const pct = Math.round(n / validas.length * 100);
+        return `<td class="num"${pct >= 50 ? ' style="color:var(--error);font-weight:700"' : ''}>${n} · ${pct}%</td>`;
+      }).join('') + '<td></td></tr>';
+  }
+
+  html += '</table><p class="chico suave">Si más de la mitad del curso queda bajo el umbral en una sección, esa nivelación necesita más tiempo del planificado.</p>';
+  document.getElementById('salida-docente').innerHTML = html;
+});
+</script>
+</body>
+</html>
