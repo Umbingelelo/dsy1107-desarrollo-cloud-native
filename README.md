@@ -29,8 +29,36 @@ Para llegar ahí pasamos por tres etapas:
 | **2 · Mensajería** | 8 a 11 | Los servicios dejan de esperarse: se comunican por mensajes |
 | **3 · Streaming** | 12 a 16 | Miles de eventos por minuto, analítica y ranking en tiempo real |
 
-**Stack:** Angular · NestJS con TypeScript · Azure Entra ID · AWS API Gateway · RabbitMQ ·
-Apache Kafka · Docker.
+**Stack:** Angular 22 · NestJS 12 con TypeScript · Node 24 · AWS Cognito · RabbitMQ 4 ·
+Apache Kafka 4 en modo KRaft · Docker · AWS (Learner Lab) y Azure for Students.
+
+## Material de la EP3
+
+La carpeta [`ep3/`](ep3/) trae el material de partida del Parcial 3: el `compose.yml` de Kafka
+(3 controllers y 3 brokers), `kafka/topics.sh`, el script que prueba los permisos del Learner Lab y
+los fragmentos de cada entrega. Su [`README.md`](ep3/README.md) dice qué se usa en cada entrega.
+El simulador de la noche de la venta está en
+[vidalstore-simulador](https://github.com/Umbingelelo/vidalstore-simulador).
+
+## El proyecto guía de los laboratorios
+
+Desde el Laboratorio 9 la biblioteca son **ocho repositorios**, uno por pieza, igual que los de tu
+grupo. Haz Fork de los ocho y clónalos **sin el sufijo** `-l9`, uno al lado del otro en la misma
+carpeta.
+
+| Pieza | Repositorio de partida | Equivale en VidalStore a |
+|---|---|---|
+| Frontend | [biblioteca-web-l9](https://github.com/Umbingelelo/biblioteca-web-l9) | el frontend Angular |
+| Gateway | [biblioteca-gateway-l9](https://github.com/Umbingelelo/biblioteca-gateway-l9) | el gateway |
+| BFF | [biblioteca-bff-l9](https://github.com/Umbingelelo/biblioteca-bff-l9) | el BFF |
+| Libros | [biblioteca-libros-l9](https://github.com/Umbingelelo/biblioteca-libros-l9) | catálogo |
+| Préstamos | [biblioteca-prestamos-l9](https://github.com/Umbingelelo/biblioteca-prestamos-l9) | licencias |
+| Worker | [biblioteca-eventos-l9](https://github.com/Umbingelelo/biblioteca-eventos-l9) | `vidalstore-eventos` |
+| Administrador | [biblioteca-admin-l9](https://github.com/Umbingelelo/biblioteca-admin-l9) | `vidalstore-admin` |
+| Plataforma | [biblioteca-plataforma-l9](https://github.com/Umbingelelo/biblioteca-plataforma-l9) | `vidalstore-plataforma` |
+
+El simulador de la biblioteca, [biblioteca-simulador](https://github.com/Umbingelelo/biblioteca-simulador),
+es una herramienta aparte: se clona al lado de los ocho, igual que `vidalstore-simulador`.
 
 ## Cómo trabajamos
 
