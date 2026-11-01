@@ -1,0 +1,21 @@
+{
+	email <correo-del-grupo>
+	# Primera vez: staging de Let's Encrypt. Cuando sale, se comenta y se reinicia una vez.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+<etiqueta>.<region>.cloudapp.azure.com {
+	encode gzip
+
+	# La API va al gateway del grupo, que corre en gw-azure en el 8080.
+	handle /v1/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	# El frontend Angular compilado, montado en /srv. Las rutas de Angular caen en index.html.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

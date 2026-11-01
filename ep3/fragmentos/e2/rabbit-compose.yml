@@ -1,0 +1,35 @@
+# RabbitMQ de VidalStore en dos EC2: rabbit@mq-1 (10.0.21.11) y rabbit@mq-2 (10.0.22.12).
+# Va en deploy/aws/mq/rabbit/compose.yml, con mq-1.env y mq-2.env al lado (ver rabbit.env.ejemplo;
+# sin secretos). Lo secreto vive en /opt/vidalstore/secretos/ de cada mq, escrito desde Parameter
+# Store: rabbitmq.conf (con la clave, ver rabbitmq.conf.ejemplo) y erlang.cookie, el mismo texto
+# aleatorio en los dos nodos, con dueno 999 (el usuario rabbitmq de la imagen) y modo 400:
+#   openssl rand -hex 20 > erlang.cookie   # una vez, en el equipo; se guarda como SecureString
+#   sudo chown 999:999 /opt/vidalstore/secretos/erlang.cookie && sudo chmod 400 /opt/vidalstore/secretos/erlang.cookie
+# Se levanta en mq-N con: sudo docker compose --env-file mq-N.env up -d --wait
+# Probado en el Learner Lab el 29-10-2026: cluster de dos nodos en 38 s, y mq-2 vuelve sola tras un stop/start.
+
+name: vidalstore-rabbit
+
+services:
+  rabbit:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    hostname: ${RABBIT_HOST}
+    # epmd, AMQP, UI y distribución Erlang publicados en la IP del host; el otro nodo llega por ellos.
+    ports: ["4369:4369", "5672:5672", "15672:15672", "25672:25672"]
+    extra_hosts: ["${OTRO_HOST}:${OTRO_IP}"]
+    environment:
+      RABBITMQ_NODENAME: rabbit@${RABBIT_HOST}
+    volumes:
+      - rabbit:/var/lib/rabbitmq
+      - /opt/vidalstore/secretos/erlang.cookie:/var/lib/rabbitmq/.erlang.cookie:ro
+      - /opt/vidalstore/secretos/rabbitmq.conf:/etc/rabbitmq/conf.d/20-vidalstore.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  rabbit:

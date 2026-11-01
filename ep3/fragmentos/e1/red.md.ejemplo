@@ -1,0 +1,67 @@
+# Red de VidalStore · EP3
+
+Diseño de la red de las dos nubes, antes de crear nada. Es el que ensayó el docente en el Learner Lab
+y en Azure for Students. Se copia como `docs/red.md` en `vidalstore-plataforma`, se completa lo que
+está entre `<>` y cada tamaño lleva una línea que lo justifica.
+
+## AWS · VPC 10.0.0.0/16 · us-east-1
+
+| Subred | Rango | Zona | Ruta 0.0.0.0/0 |
+|---|---|---|---|
+| pública | 10.0.1.0/24 | us-east-1a | Internet Gateway |
+| aplicación | 10.0.11.0/24 | us-east-1a | interfaz de red de `nat` |
+| datos-a | 10.0.21.0/24 | us-east-1a | interfaz de red de `nat` |
+| datos-b | 10.0.22.0/24 | us-east-1b | interfaz de red de `nat` |
+
+`datos-b` está en otra zona de disponibilidad para que una falla de zona no se lleve las tres `mq`.
+
+| Máquina | Subred | IP privada | Tamaño | Lo que corre | Por qué ese tamaño |
+|---|---|---|---|---|---|
+| `gw-aws` | pública | 10.0.1.20, con Elastic IP | t3.small | Caddy con HTTPS y el gateway | <justificar> |
+| `nat` | pública | 10.0.1.10 | t3.nano | NAT instance de las subredes privadas | <justificar> |
+| `servicios` | aplicación | 10.0.11.10 | t3.medium | catálogo, licencias y `vidalstore-eventos` | <justificar> |
+| `gestion` | aplicación | 10.0.11.20 | t3.medium | `vidalstore-admin`, Kafka UI, simulador, runner `aws` (Prometheus y Grafana, opcionales) | <justificar> |
+| `mq-1` | datos-a | 10.0.21.11 | t3.small | controller 1, broker 4 y `rabbit1` | <justificar> |
+| `mq-2` | datos-b | 10.0.22.12 | t3.small | controller 2, broker 5 y `rabbit2` | <justificar> |
+| `mq-3` | datos-a | 10.0.21.13 | t3.small | controller 3 y broker 6 | <justificar> |
+| `datos` | datos-a | 10.0.21.30 | t3.small | Postgres 18 | <justificar> |
+
+Medido en el ensayo: una `mq` en t3.small usa 925 de 1.909 MB con Kafka y RabbitMQ.
+
+| Grupo de reglas | Puerto | Origen | Para qué |
+|---|---|---|---|
+| `sg-gw` | 80 | `0.0.0.0/0` | Desafío de Let's Encrypt y redirección a HTTPS |
+| `sg-gw` | 443 | `<IP pública de gw-azure>/32` | La API, solo para el BFF |
+| `sg-servicios` | `<puertos de catálogo, licencias y eventos>` | `sg-gw` y `sg-gestion` | El gateway y el administrador |
+| `sg-mq` | 9092 | `sg-servicios`, `sg-gestion` y `sg-mq` | Clientes de Kafka y réplica entre brokers |
+| `sg-mq` | 9093 | `sg-mq` | Quórum KRaft |
+| `sg-mq` | 5672 | `sg-servicios` y `sg-gestion` | AMQP de RabbitMQ |
+| `sg-mq` | 15672 | `sg-gestion` | Administración de RabbitMQ |
+| `sg-mq` | 4369 y 25672 | `sg-mq` | Clúster de RabbitMQ |
+| `sg-datos` | 5432 | `sg-servicios` y `sg-gestion` | Postgres |
+| `sg-nat` | todos | `sg-servicios`, `sg-gestion`, `sg-mq` y `sg-datos` | Salida a internet de las subredes privadas |
+| `sg-gestion` | ninguno | | Se entra por Session Manager |
+
+Ninguna regla abre el 22: se entra a todas las máquinas por Session Manager. Cada regla nombra otro
+grupo como origen, salvo las dos de `sg-gw`, porque lo que llega desde fuera de la VPC no tiene grupo.
+
+## Azure · VNet 10.1.0.0/16 · `<region>`
+
+| Subred | Rango | Salida a internet |
+|---|---|---|
+| pública | 10.1.1.0/24 | directa, por la IP pública de `gw-azure` |
+| privada | 10.1.2.0/24 | por `gw-azure` (tabla de rutas hacia 10.1.1.4); creada con `--default-outbound false` |
+
+| Máquina | Subred | IP privada | Tamaño | Lo que corre | Por qué ese tamaño |
+|---|---|---|---|---|---|
+| `gw-azure` | pública | 10.1.1.4, con IP pública estática y etiqueta `<etiqueta>` | B2ats_v2 | Caddy, frontend, gateway y NAT de la subred privada | <justificar> |
+| `bff` | privada | 10.1.2.4, sin IP pública | B2als_v2 | el BFF y el runner `azure` | <justificar> |
+
+Medido en el ensayo: `gw-azure` ve 887 MB y le quedan 506 libres con Caddy y un contenedor de Node.
+
+| NSG | Puerto | Origen | Para qué |
+|---|---|---|---|
+| `gw-azure` | 443 y 80 | Internet | La web y el desafío de Let's Encrypt |
+| `gw-azure` | 22 | `<IP de cada integrante>/32` | SSH |
+| `gw-azure` | todos | 10.1.2.0/24 | El NAT de `bff` |
+| `bff` | todos | 10.1.0.0/16 | Solo desde la VNet |

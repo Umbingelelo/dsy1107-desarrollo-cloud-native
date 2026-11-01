@@ -1,0 +1,21 @@
+# .github/workflows/desplegar.yml de vidalstore-plataforma (repositorio privado).
+# Corre solo con push a main (el merge del pull request desde dev), nunca con pull_request: el
+# repositorio tiene runners propios. BUCKET es una variable del repositorio:
+# Settings -> Secrets and variables -> Actions -> Variables -> New repository variable.
+name: desplegar
+on:
+  push:
+    branches: [main]
+jobs:
+  aws:
+    runs-on: [self-hosted, aws]
+    env:
+      BUCKET: ${{ vars.BUCKET }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash deploy/aws/desplegar.sh
+  azure:
+    runs-on: [self-hosted, azure]
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash deploy/azure/desplegar.sh

@@ -1,0 +1,71 @@
+# Kafka de VidalStore repartido en tres EC2 (mq-1, mq-2, mq-3): en cada host, un controller y un broker.
+# Va en deploy/aws/mq/kafka/compose.yml, con un .env por maquina al lado (mq-1.env, mq-2.env, mq-3.env:
+# ver mq.env.ejemplo; no tienen secretos y se versionan). Llega a cada mq por S3, a
+# /opt/vidalstore/deploy/aws/mq/kafka/, y se levanta en mq-N con:
+#   sudo docker compose --env-file mq-N.env up -d --wait
+# network_mode: host, para que cada proceso escuche y anuncie la IP privada fija de la EC2.
+# Probado en el Learner Lab el 29-10-2026: las tres mq sanas en 40 s.
+
+name: vidalstore-mq
+
+x-kafka: &kafka
+  image: apache/kafka:4.4.0
+  restart: unless-stopped
+  network_mode: host
+
+services:
+  controller:
+    <<: *kafka
+    environment:
+      CLUSTER_ID: VmlkYWxTdG9yZS1LYWZrYQ
+      KAFKA_NODE_ID: ${NODO}
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_LISTENERS: CONTROLLER://${MQ_IP}:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${VOTANTES}
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+    volumes: [controller:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/${MQ_IP}/9093"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  broker:
+    <<: *kafka
+    environment:
+      CLUSTER_ID: VmlkYWxTdG9yZS1LYWZrYQ
+      KAFKA_NODE_ID: ${BROKER_ID}
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: INTERNO://${MQ_IP}:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://${MQ_IP}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNO:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${VOTANTES}
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes: [broker:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/${MQ_IP}/9092"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+    depends_on:
+      controller: { condition: service_healthy }
+
+volumes:
+  controller:
+  broker:

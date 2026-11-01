@@ -1,0 +1,13 @@
+{
+	email <correo-del-grupo>
+	# Primera vez: descomentar la linea siguiente (staging de Let's Encrypt). Cuando el
+	# certificado de prueba sale, se comenta y se reinicia Caddy una sola vez.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# El nombre es la Elastic IP de gw-aws con guiones: 100.51.99.43 -> 100-51-99-43.sslip.io
+# El Security Group deja entrar el 80 desde internet (desafio de Let's Encrypt) y el
+# 443 solo desde la IP publica de gw-azure. El gateway del grupo escucha en el 8080.
+<elastic-ip-con-guiones>.sslip.io {
+	reverse_proxy 127.0.0.1:8080
+}

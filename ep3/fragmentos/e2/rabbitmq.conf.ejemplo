@@ -1,0 +1,9 @@
+# Ejemplo de /opt/vidalstore/secretos/rabbitmq.conf en mq-1 y mq-2 (rabbit-compose.yml lo monta en
+# /etc/rabbitmq/conf.d/). Lleva la clave, asi que no se versiona: se guarda como SecureString y la
+# maquina lo escribe al desplegar. El cluster se forma solo al arrancar, sin join_cluster. El
+# usuario no puede ser guest: guest solo entra desde localhost.
+cluster_formation.peer_discovery_backend = classic_config
+cluster_formation.classic_config.nodes.1 = rabbit@mq-1
+cluster_formation.classic_config.nodes.2 = rabbit@mq-2
+default_user = vidalstore
+default_pass = <clave-que-no-va-al-repositorio>

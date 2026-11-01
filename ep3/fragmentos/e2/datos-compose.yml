@@ -1,0 +1,23 @@
+# Postgres 18 de VidalStore en la EC2 datos (10.0.21.30). La imagen 18 guarda los datos en
+# /var/lib/postgresql/18/docker: el volumen se monta en /var/lib/postgresql, no en .../data.
+
+name: vidalstore-datos
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_DB: vidalstore
+      POSTGRES_USER: vidalstore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vidalstore -d vidalstore"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres:

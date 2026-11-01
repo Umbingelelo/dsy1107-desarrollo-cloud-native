@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# levantar.sh · esqueleto para vidalstore-plataforma. Se copia como levantar.sh y se ajusta la lista
+# SERVICIOS a los repositorios del grupo. Supone que todos los repositorios estan clonados uno al lado
+# del otro, como los clona el docente:
+#   carpeta/
+#     vidalstore-plataforma/   <- aqui va este script
+#     vidalstore-eventos/
+#     <repo-del-gateway>/ ...
+# Uso, en bash (Git Bash en Windows):  bash levantar.sh
+set -euo pipefail
+export MSYS_NO_PATHCONV=1
+cd "$(dirname "$0")"
+PLATAFORMA="$(pwd)"
+RAIZ="$(cd .. && pwd)"
+
+# 1 · Los .env desde los .env.example, solo si no existen
+for ejemplo in "$RAIZ"/*/.env.example; do
+  destino="${ejemplo%.example}"
+  [ -f "$destino" ] || cp "$ejemplo" "$destino"
+done
+
+# 2 · Kafka, RabbitMQ y Postgres, esperando a que esten healthy
+docker compose up -d --wait
+
+# 3 · Los topics (no falla si ya existen)
+sh kafka/topics.sh > /dev/null
+
+# 4 · Dependencias, compilacion y arranque de cada servicio, en segundo plano, con su log
+SERVICIOS="vidalstore-eventos vidalstore-admin"   # ajustar: todos los servicios Node del grupo
+mkdir -p "$PLATAFORMA/logs"
+for s in $SERVICIOS; do
+  echo "== $s"
+  ( cd "$RAIZ/$s" && npm ci && npm run build )
+  # en segundo plano, con su .env cargado y su log; el pid queda para poder detenerlo
+  (
+    cd "$RAIZ/$s"
+    set -a; if [ -f .env ]; then . ./.env; fi; set +a
+    nohup npm run start:prod < /dev/null > "$PLATAFORMA/logs/$s.log" 2>&1 &
+    echo $! > "$PLATAFORMA/logs/$s.pid"
+  )
+done
+
+# 5 · Como se comprueba que quedo arriba: cada servicio responde (ajustar puertos y rutas)
+sleep 8
+for url in http://localhost:3010/salud; do
+  if curl -fsS --max-time 5 "$url" > /dev/null; then echo "OK    $url"; else echo "FALLA $url (ver logs/)"; fi
+done
+docker compose ps --format "table {{.Name}}\t{{.Status}}"
+echo 'Kafka UI: http://localhost:8085 · para detener los servicios: kill $(cat logs/*.pid)'
