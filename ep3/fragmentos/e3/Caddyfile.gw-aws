@@ -1,13 +1,42 @@
 {
 	email <correo-del-grupo>
 	# Primera vez: descomentar la linea siguiente (staging de Let's Encrypt). Cuando el
-	# certificado de prueba sale, se comenta y se reinicia Caddy una sola vez.
+	# certificado de prueba sale, se comenta y se reinicia Caddy una sola vez, en gw-aws por
+	# Session Manager: sudo docker compose restart caddy. Un up -d del despliegue no recrea el
+	# contenedor por un cambio de este archivo. NUNCA docker compose down -v: /data guarda los
+	# certificados.
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
 # El nombre es la Elastic IP de gw-aws con guiones: 100.51.99.43 -> 100-51-99-43.sslip.io
 # El Security Group deja entrar el 80 desde internet (desafio de Let's Encrypt) y el
-# 443 solo desde la IP publica de gw-azure. El gateway del grupo escucha en el 8080.
+# 443 solo desde la IP publica de gw-azure.
+# Un handle por ruta, como en el ensayo de L12: lo que pide el BFF de Azure va directo a cada
+# servicio de la maquina servicios (10.0.11.10), que valida el token igual. Un gateway que
+# reenvia todo a una sola BFF_URL no sabe repartir estas rutas. Los puertos son los del grupo.
 <elastic-ip-con-guiones>.sslip.io {
-	reverse_proxy 127.0.0.1:8080
+	handle /v1/catalogo* {
+		reverse_proxy 10.0.11.10:3001
+	}
+	handle /v1/compras* {
+		reverse_proxy 10.0.11.10:3002
+	}
+	handle /v1/biblioteca* {
+		reverse_proxy 10.0.11.10:3002
+	}
+	handle /v1/licencias* {
+		reverse_proxy 10.0.11.10:3002
+	}
+	# Si el BFF le pide el panel a vidalstore-eventos, su ruta va igual:
+	# handle /<ruta-del-panel>* {
+	# 	reverse_proxy 10.0.11.10:<puerto-de-eventos>
+	# }
+
+	# El resto de la API con token, al gateway del grupo en esta misma maquina
+	handle /v1/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle {
+		respond "no encontrado" 404
+	}
 }

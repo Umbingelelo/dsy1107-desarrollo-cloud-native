@@ -4,7 +4,9 @@
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
-<etiqueta>.<region>.cloudapp.azure.com {
+# DOMINIO llega del compose de gw-azure (<etiqueta>.<region>.cloudapp.azure.com): con un
+# nombre, Caddy saca el certificado solo. Sin DOMINIO (compose local) sirve HTTP en el 80.
+{$DOMINIO::80} {
 	encode gzip
 
 	# La API va al gateway del grupo, que corre en gw-azure en el 8080.
@@ -12,7 +14,8 @@
 		reverse_proxy 127.0.0.1:8080
 	}
 
-	# El frontend Angular compilado, montado en /srv. Las rutas de Angular caen en index.html.
+	# El frontend Angular compilado, montado en /srv. Las rutas de Angular (/callback, /panel)
+	# caen en index.html.
 	handle {
 		root * /srv
 		try_files {path} /index.html

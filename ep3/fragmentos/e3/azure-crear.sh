@@ -74,5 +74,7 @@ done
 FQDN=$(az network public-ip show -g $G -n pip-gw --query dnsSettings.fqdn -o tsv)
 IP=$(az network public-ip show -g $G -n pip-gw --query ipAddress -o tsv)
 echo "gw-azure: $FQDN ($IP)"
-echo "SSH: ssh -i $CLAVE azureuser@$IP   y a bff: ssh -i $CLAVE -J azureuser@$IP azureuser@10.1.2.4"
+echo "SSH: ssh -i $CLAVE azureuser@$IP"
+# Con -J la llave no se usa en el salto (Permission denied): ProxyCommand con -i en los dos tramos.
+echo "a bff: ssh -i $CLAVE -o \"ProxyCommand=ssh -i $CLAVE -W %h:%p azureuser@$IP\" azureuser@10.1.2.4"
 echo "Esa IP publica es la que va en la regla 443 de sg-gw en AWS."
