@@ -1,21 +1,208 @@
-# .github/workflows/desplegar.yml de vidalstore-plataforma (repositorio privado).
-# Corre solo con push a main (el merge del pull request desde dev), nunca con pull_request: el
-# repositorio tiene runners propios. BUCKET es una variable del repositorio:
-# Settings -> Secrets and variables -> Actions -> Variables -> New repository variable.
+# .github/workflows/desplegar.yml de vidalstore-plataforma (repositorio privado). Desplegar es cambiar un sha
+# en deploy/versiones.env y hacer merge a main desde dev por pull request: para GitHub Actions ese merge es un
+# push a main. Corre solo con push a main (y a mano con workflow_dispatch), nunca con pull_request: el
+# repositorio tiene runners propios dentro de cada nube.
+#
+#   validar  (GitHub)              formato de versiones.env y que cada imagen exista en GHCR
+#   aws      (runner aws, gestion)  una vez por máquina (servicios, gestion, gw-aws): S3 + aws ssm send-command
+#   azure    (runner azure, bff)    bff y, por SSH dentro de la VNet, gw-azure
+#   humo     (runner azure, bff)    el frontend responde por HTTPS y AWS responde desde bff
+#
+# Todo el despliegue está en este archivo: no hay scripts aparte. Ninguna credencial de nube en GitHub: el
+# runner aws usa el rol de la instancia gestion (LabInstanceProfile) y el azure, la llave SSH de bff.
+# Variables del repositorio (Settings -> Secrets and variables -> Actions -> Variables), ninguna secreta:
+#   BUCKET        bucket de S3 por donde llega deploy/ a las máquinas de AWS
+#   FRONTEND_URL  https://<etiqueta>.<region>.cloudapp.azure.com
+#   AWS_URL       https://<elastic-ip-con-guiones>.sslip.io
+#
+# Lo que se hace una sola vez, antes del primer despliegue (no va aquí):
+#   - cada .env con secretos de AWS, entero, como SecureString en /vidalstore/<maquina>/env (Parameter Store);
+#   - en bff y gw-azure, /opt/vidalstore/secretos/<maquina>.env escrito por SSH (carpeta 700, archivo 600);
+#   - en bff: ssh-keygen -t ed25519 y la parte pública en ~/.ssh/authorized_keys de gw-azure;
+#   - los dos runners registrados como servicio, con --labels aws (en gestion) y --labels azure (en bff).
+# Los compose.yml van en deploy/aws/<maquina>/ y deploy/azure/<maquina>/, con el mismo nombre que la máquina.
 name: desplegar
+
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+
+# Dos merges seguidos no se pisan: el segundo espera a que termine el primero.
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+
 jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Revisar el formato de deploy/versiones.env
+        run: |
+          # Cada línea que no es comentario: NOMBRE=ghcr.io/<usuario>/<repo>:<sha de 40 caracteres>
+          malas=$(grep -v -E '^(#.*)?$' deploy/versiones.env \
+            | grep -v -E '^[A-Z_]+=ghcr\.io/[a-z0-9_.-]+/[a-z0-9_.-]+:[0-9a-f]{40}$' || true)
+          if [ -n "$malas" ]; then
+            echo "::error::Líneas con formato inválido en deploy/versiones.env:"; echo "$malas"; exit 1
+          fi
+          for v in GATEWAY BFF FRONTEND CATALOGO LICENCIAS EVENTOS ADMIN; do
+            grep -q "^$v=" deploy/versiones.env || { echo "::error::Falta $v en deploy/versiones.env"; exit 1; }
+          done
+          echo "versiones.env: $(grep -c '^[A-Z]' deploy/versiones.env) imágenes, todas con sha"
+
+      - name: Comprobar que cada imagen existe en GHCR
+        run: |
+          for img in $(grep -E '^[A-Z_]+=' deploy/versiones.env | cut -d= -f2); do
+            if docker manifest inspect "$img" > /dev/null; then
+              echo "existe     $img"
+            else
+              echo "::error::No existe en GHCR (o no es pública): $img"; exit 1
+            fi
+          done
+
   aws:
+    needs: validar
     runs-on: [self-hosted, aws]
+    timeout-minutes: 20
+    # Un job por máquina: en Actions se ven como aws (servicios), aws (gestion) y aws (gw-aws). Con un solo
+    # runner corren una después de otra. fail-fast: false, para que una máquina que falla no corte a las demás.
+    strategy:
+      fail-fast: false
+      matrix:
+        maquina: [servicios, gestion, gw-aws]
     env:
+      MAQUINA: ${{ matrix.maquina }}
       BUCKET: ${{ vars.BUCKET }}
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_PAGER: ""
     steps:
       - uses: actions/checkout@v5
-      - run: bash deploy/aws/desplegar.sh
+
+      - name: Subir deploy/ al bucket de S3
+        run: |
+          aws s3 sync deploy/ "s3://$BUCKET/deploy/" --delete --only-show-errors --exclude "*.DS_Store"
+          echo "deploy/ quedó en s3://$BUCKET/deploy/"
+
+      - name: Buscar la instancia de ${{ matrix.maquina }}
+        run: |
+          id=$(aws ec2 describe-instances --output text \
+            --filters "Name=tag:Name,Values=$MAQUINA" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId')
+          [ "$id" != None ] || { echo "::error::No hay una instancia corriendo con Name=$MAQUINA"; exit 1; }
+          echo "$MAQUINA: $id"
+          echo "INSTANCIA=$id" >> "$GITHUB_ENV"
+
+      - name: Pedir a ${{ matrix.maquina }} que despliegue (aws ssm send-command)
+        run: |
+          # Lo que corre la máquina, como root y con su propio rol: baja deploy/ de S3, escribe su .env desde
+          # Parameter Store (/vidalstore/<maquina>/env, SecureString) y hace docker compose pull y up.
+          # --exact-timestamps: sin él, s3 sync no baja un archivo del mismo tamaño aunque cambie (un sha por otro
+          # en versiones.env tiene siempre el mismo largo) y la máquina se queda con la versión anterior.
+          D=/opt/vidalstore
+          C="docker compose --env-file ../../versiones.env --env-file $D/secretos/$MAQUINA.env"
+          cat > "$RUNNER_TEMP/orden.json" <<EOF
+          {"commands": [
+            "set -e",
+            "mkdir -p $D/secretos && chmod 700 $D/secretos",
+            "aws s3 sync s3://$BUCKET/deploy/ $D/deploy/ --delete --exact-timestamps --only-show-errors --region us-east-1",
+            "aws ssm get-parameter --region us-east-1 --name /vidalstore/$MAQUINA/env --with-decryption --query Parameter.Value --output text > $D/secretos/$MAQUINA.env",
+            "chmod 600 $D/secretos/$MAQUINA.env",
+            "cd $D/deploy/aws/$MAQUINA",
+            "$C --progress quiet pull",
+            "$C --progress quiet up -d --wait --remove-orphans",
+            "echo '== lo que corre en $MAQUINA'",
+            "$C ps --format '{{.Name}}  {{.Image}}  {{.Status}}'"
+          ], "executionTimeout": ["900"]}
+          EOF
+          orden=$(aws ssm send-command --instance-ids "$INSTANCIA" --document-name AWS-RunShellScript \
+            --comment "desplegar $MAQUINA (run $GITHUB_RUN_ID)" --timeout-seconds 600 \
+            --parameters "file://$RUNNER_TEMP/orden.json" --query Command.CommandId --output text)
+          echo "orden $orden enviada a $MAQUINA ($INSTANCIA)"
+          echo "ORDEN=$orden" >> "$GITHUB_ENV"
+
+      - name: Esperar el resultado en ${{ matrix.maquina }}
+        run: |
+          # Sin tope fijo de tiempo: un primer pull de varias imágenes por la nat puede tardar (el job tiene 20 min).
+          while :; do
+            estado=$(aws ssm get-command-invocation --command-id "$ORDEN" --instance-id "$INSTANCIA" \
+              --query Status --output text 2>/dev/null || true)
+            case "$estado" in Pending|InProgress|Delayed|"") sleep 5 ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$ORDEN" --instance-id "$INSTANCIA" \
+            --query StandardOutputContent --output text
+          if [ "$estado" != Success ]; then
+            aws ssm get-command-invocation --command-id "$ORDEN" --instance-id "$INSTANCIA" \
+              --query StandardErrorContent --output text
+            echo "::error::$MAQUINA: la orden terminó en $estado"; exit 1
+          fi
+          echo "$MAQUINA: $estado"
+
   azure:
+    needs: validar
     runs-on: [self-hosted, azure]
+    timeout-minutes: 20
+    env:
+      GW: azureuser@10.1.1.4         # gw-azure, por su IP privada (docs/red.md): el SSH no sale de la VNet
+      SSH_OPC: "-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+      S: /opt/vidalstore/secretos
+    defaults:
+      run:
+        working-directory: deploy
+    # La llave es ~/.ssh/id_ed25519 del usuario del runner en bff; su parte pública se agregó UNA vez a
+    # ~/.ssh/authorized_keys de gw-azure. Los .env viven en cada máquina, en /opt/vidalstore/secretos/.
     steps:
       - uses: actions/checkout@v5
-      - run: bash deploy/azure/desplegar.sh
+
+      - name: Desplegar en bff (docker compose pull y up)
+        run: |
+          test -f $S/bff.env || { echo "::error::Falta $S/bff.env en bff"; exit 1; }
+          C="docker compose -f azure/bff/compose.yml --env-file versiones.env --env-file $S/bff.env"
+          $C pull -q
+          $C up -d --wait --remove-orphans
+
+      - name: Copiar versiones.env y el compose a gw-azure (scp dentro de la VNet)
+        run: |
+          ssh $SSH_OPC "$GW" "test -f $S/gw-azure.env && mkdir -p ~/despliegue" \
+            || { echo "::error::Sin SSH a gw-azure, o falta $S/gw-azure.env"; exit 1; }
+          scp $SSH_OPC -q versiones.env azure/gw-azure/compose.yml "$GW:despliegue/"
+
+      - name: Desplegar en gw-azure (docker compose pull y up por SSH)
+        run: |
+          ssh $SSH_OPC "$GW" "cd ~/despliegue &&
+            docker compose --env-file versiones.env --env-file $S/gw-azure.env pull -q &&
+            docker compose --env-file versiones.env --env-file $S/gw-azure.env up -d --wait --remove-orphans"
+
+      - name: Ver qué imagen quedó corriendo en Azure
+        run: |
+          echo "== bff";      docker ps --format '{{.Names}}  {{.Image}}  {{.Status}}'
+          echo "== gw-azure"; ssh $SSH_OPC "$GW" "docker ps --format '{{.Names}}  {{.Image}}  {{.Status}}'"
+
+  humo:
+    needs: [aws, azure]
+    runs-on: [self-hosted, azure]
+    timeout-minutes: 5
+    env:
+      FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+      AWS_URL: ${{ vars.AWS_URL }}
+    # Cada prueba reintenta 6 veces cada 5 s: un contenedor recién recreado tarda unos segundos en responder.
+    steps:
+      - name: El frontend responde 200 por HTTPS
+        run: |
+          curl -sS --fail --retry 6 --retry-delay 5 --retry-all-errors --max-time 10 \
+            -o /dev/null -w "%{http_code}  $FRONTEND_URL/\n" "$FRONTEND_URL/"
+
+      - name: Una ruta de Angular (/callback) responde 200
+        run: |
+          curl -sS --fail --retry 6 --retry-delay 5 --retry-all-errors --max-time 10 \
+            -o /dev/null -w "%{http_code}  $FRONTEND_URL/callback\n" "$FRONTEND_URL/callback"
+
+      - name: Desde bff, AWS responde 401 sin token
+        run: |
+          # 401 prueba que la petición cruzó a AWS por HTTPS y que el servicio exige el token. /v1/catalogo es
+          # el primer handle de Caddyfile.gw-aws; si tu grupo usa otra ruta con token, cámbiala aquí.
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' --retry 6 --retry-delay 5 --retry-connrefused \
+            --max-time 10 "$AWS_URL/v1/catalogo" || true)
+          echo "$codigo  $AWS_URL/v1/catalogo"
+          [ "$codigo" = 401 ] || { echo "::error::AWS respondió $codigo; se esperaba 401"; exit 1; }
